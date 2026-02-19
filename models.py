@@ -1,9 +1,8 @@
-from sqlalchemy import Column, Integer, Text, JSON, TIMESTAMP
+from sqlalchemy import Column, Integer, Text, JSON, TIMESTAMP, Boolean
 from sqlalchemy.orm import declarative_base
 from sqlalchemy.sql import func
 
 Base = declarative_base()
-
 
 class RawOSINT(Base):
     __tablename__ = "raw_osint"
@@ -14,11 +13,14 @@ class RawOSINT(Base):
     content = Column(Text, nullable=False)
     url = Column(Text)
 
-    # Proper duplicate handling column
     content_hash = Column(Text, unique=True, index=True)
 
-    # JSON metadata column (DB column name remains "metadata")
     extra_metadata = Column("metadata", JSON)
+
+    incident_type = Column(Text)
+    severity = Column(Text)
+
+    processed = Column(Boolean, default=False)
 
     collected_at = Column(TIMESTAMP, server_default=func.now())
 

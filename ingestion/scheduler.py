@@ -1,18 +1,30 @@
 from apscheduler.schedulers.blocking import BlockingScheduler
-from ingestion.collectors.news import collect_news
-from ingestion.collectors.rss import collect_rss
-from ingestion.collectors.reddit import collect_reddit
 import logging
+
+from ingestion.collectors.news import collect_news
+from ai_engine.pipeline import process_unprocessed_records
 
 logging.basicConfig(level=logging.INFO)
 
 scheduler = BlockingScheduler()
 
-scheduler.add_job(collect_news, 'interval', minutes=15)
-scheduler.add_job(collect_rss, 'interval', minutes=15)
-scheduler.add_job(collect_reddit, 'interval', minutes=15)
+
+def ingestion_job():
+    logging.info("Running ingestion job...")
+    collect_news()
+
+
+def ai_processing_job():
+    logging.info("Running AI processing job...")
+    process_unprocessed_records()
+
+
+# Run every 15 minutes
+scheduler.add_job(ingestion_job, 'interval', minutes=15)
+scheduler.add_job(ai_processing_job, 'interval', minutes=15)
+
 
 if __name__ == "__main__":
-    logging.info("🚀 OSNIT Multi-Source Scheduler Started...")
+    logging.info("🚀 OSNIT Full Pipeline Scheduler Started...")
     scheduler.start()
 
