@@ -1,9 +1,35 @@
 from fastapi import FastAPI
 from backend.routes.incidents import router as incidents_router
+from ingestion.collectors.news import collect_news
+from ai_engine.pipeline import process_unprocessed_records
+from apscheduler.schedulers.background import BackgroundScheduler
+import logging
 
 app = FastAPI(title="OSNIT Shield API")
 
 app.include_router(incidents_router)
+
+logging.basicConfig(level=logging.INFO)
+
+scheduler = BackgroundScheduler()
+
+
+def ingestion_job():
+    logging.info("Running ingestion job...")
+    collect_news()
+
+
+def ai_processing_job():
+    logging.info("Running AI processing job...")
+    process_unprocessed_records()
+
+
+@app.on_event("startup")
+def start_scheduler():
+    scheduler.add_job(ingestion_job, 'interval', minutes=15)
+    scheduler.add_job(ai_processing_job, 'interval', minutes=15)
+    scheduler.start()
+    logging.info("🚀 Scheduler started inside FastAPI")
 
 
 @app.get("/")

@@ -3,8 +3,10 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from dotenv import load_dotenv
 
+# Load environment variables
 load_dotenv()
 
+# Build database URL from environment variables
 DATABASE_URL = (
     f"postgresql://{os.getenv('DB_USER')}:"
     f"{os.getenv('DB_PASSWORD')}@"
@@ -13,16 +15,16 @@ DATABASE_URL = (
     f"{os.getenv('DB_NAME')}"
 )
 
-engine = create_engine(DATABASE_URL, echo=False)
-SessionLocal = sessionmaker(bind=engine)
+# Create SQLAlchemy engine
+engine = create_engine(
+    DATABASE_URL,
+    pool_pre_ping=True  # Prevent stale connections
+)
 
+# Create session factory
+SessionLocal = sessionmaker(
+    autocommit=False,
+    autoflush=False,
+    bind=engine
+)
 
-def test_connection():
-    try:
-        with engine.connect() as connection:
-            print("✅ Database Connected Successfully!")
-    except Exception as e:
-        print("❌ Connection Failed:", e)
-
-if __name__ == "__main__":
-    test_connection()
