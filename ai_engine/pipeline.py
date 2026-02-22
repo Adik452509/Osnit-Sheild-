@@ -1,7 +1,11 @@
+import logging
+
 from database import SessionLocal
 from models import RawOSINT
+
 from ai_engine.classifier import classify_incident
-import logging
+from ai_engine.ner import extract_entities
+from ai_engine.geolocation import geocode_location
 
 logging.basicConfig(level=logging.INFO)
 
@@ -17,18 +21,39 @@ def process_unprocessed_records():
         logging.info(f"Found {len(records)} unprocessed records.")
 
         for record in records:
-            incident_type, severity = classify_incident(record.content)
 
+            
+            incident_type, severity, confidence = classify_incident(
+                record.content
+            )
+
+            
+            entities = extract_entities(record.content)
+
+            
+            latitude = None
+            longitude = None
+
+            if entities.get("locations"):
+                latitude, longitude = geocode_location(
+                    entities["locations"][0]
+                )
+
+          
             record.incident_type = incident_type
             record.severity = severity
+            record.confidence = confidence
+            record.entities = entities
+            record.latitude = latitude
+            record.longitude = longitude
             record.processed = True
 
         db.commit()
-        logging.info("Processing complete.")
+        logging.info("AI Processing complete.")
 
     except Exception as e:
         db.rollback()
-        logging.error(f"Processing error: {e}")
+        logging.error(f"AI Processing error: {e}")
 
     finally:
         db.close()
@@ -36,4 +61,3 @@ def process_unprocessed_records():
 
 if __name__ == "__main__":
     process_unprocessed_records()
-

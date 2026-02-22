@@ -1,6 +1,7 @@
 from sqlalchemy import Column, Integer, Text, JSON, TIMESTAMP, Boolean
 from sqlalchemy.orm import declarative_base
 from sqlalchemy.sql import func
+from sqlalchemy import Float
 
 Base = declarative_base()
 
@@ -23,4 +24,6 @@ class RawOSINT(Base):
     processed = Column(Boolean, default=False)
 
     collected_at = Column(TIMESTAMP, server_default=func.now())
+    
+    confidence = Column(Float)
 
