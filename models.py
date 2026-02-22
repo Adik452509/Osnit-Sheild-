@@ -35,4 +35,6 @@ class RawOSINT(Base):
 
     collected_at = Column(TIMESTAMP, server_default=func.now())
     
+    cluster_id = Column(Integer)
+    
 

@@ -2,10 +2,12 @@ import logging
 
 from database import SessionLocal
 from models import RawOSINT
-from ai_engine.embedding import generate_embedding
+
 from ai_engine.classifier import classify_incident
 from ai_engine.ner import extract_entities
 from ai_engine.geolocation import geocode_location
+from ai_engine.embedding import generate_embedding
+from ai_engine.clustering import cluster_records
 
 logging.basicConfig(level=logging.INFO)
 
@@ -23,6 +25,9 @@ def process_unprocessed_records():
     db = SessionLocal()
 
     try:
+        # ----------------------------
+        # Fetch Unprocessed Records
+        # ----------------------------
         records = db.query(RawOSINT).filter(
             RawOSINT.processed == False
         ).all()
@@ -58,18 +63,18 @@ def process_unprocessed_records():
             # 4️⃣ Risk Scoring
             # ----------------------------
             severity_weight = SEVERITY_WEIGHTS.get(severity, 1)
-
-            # Source credibility weight
             source_weight = 1.2 if record.source == "newsapi" else 1
-
-            # Geo presence weight
             geo_weight = 1.1 if latitude and longitude else 1
 
             risk_score = confidence * severity_weight * source_weight * geo_weight
-            embedding = generate_embedding(record.content)
-            record.embedding = embedding
+
             # ----------------------------
-            # 5️⃣ Save AI Results
+            # 5️⃣ Embedding Generation
+            # ----------------------------
+            embedding = generate_embedding(record.content)
+
+            # ----------------------------
+            # 6️⃣ Save AI Results
             # ----------------------------
             record.incident_type = incident_type
             record.severity = severity
@@ -78,14 +83,25 @@ def process_unprocessed_records():
             record.latitude = latitude
             record.longitude = longitude
             record.risk_score = round(risk_score, 3)
+            record.embedding = embedding
             record.processed = True
 
+        # Commit enrichment updates
         db.commit()
-        logging.info("AI Processing complete.")
+        logging.info("AI enrichment complete.")
+
+        # ----------------------------
+        # 7️⃣ Clustering (Post-Processing)
+        # ----------------------------
+        all_records = db.query(RawOSINT).all()
+        cluster_records(all_records)
+
+        db.commit()
+        logging.info("Clustering complete.")
 
     except Exception as e:
         db.rollback()
-        logging.error(f"AI Processing error: {e}")
+        logging.error(f"Pipeline error: {e}")
 
     finally:
         db.close()
