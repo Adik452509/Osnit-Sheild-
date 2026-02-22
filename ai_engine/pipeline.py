@@ -2,7 +2,7 @@ import logging
 
 from database import SessionLocal
 from models import RawOSINT
-
+from ai_engine.embedding import generate_embedding
 from ai_engine.classifier import classify_incident
 from ai_engine.ner import extract_entities
 from ai_engine.geolocation import geocode_location
@@ -66,7 +66,8 @@ def process_unprocessed_records():
             geo_weight = 1.1 if latitude and longitude else 1
 
             risk_score = confidence * severity_weight * source_weight * geo_weight
-
+            embedding = generate_embedding(record.content)
+            record.embedding = embedding
             # ----------------------------
             # 5️⃣ Save AI Results
             # ----------------------------

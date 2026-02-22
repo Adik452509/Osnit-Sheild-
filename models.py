@@ -1,5 +1,6 @@
 from sqlalchemy import Column, Integer, Text, JSON, TIMESTAMP, Boolean
 from sqlalchemy.orm import declarative_base
+from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.sql import func
 from sqlalchemy import Float
 
@@ -27,5 +28,11 @@ class RawOSINT(Base):
     
     confidence = Column(Float)
     risk_score = Column(Float)
+    
+    embedding = Column(ARRAY(Float))
+
+    processed = Column(Boolean, default=False)
+
+    collected_at = Column(TIMESTAMP, server_default=func.now())
     
 
