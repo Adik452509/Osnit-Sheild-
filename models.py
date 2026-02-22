@@ -26,4 +26,6 @@ class RawOSINT(Base):
     collected_at = Column(TIMESTAMP, server_default=func.now())
     
     confidence = Column(Float)
+    risk_score = Column(Float)
+    
 

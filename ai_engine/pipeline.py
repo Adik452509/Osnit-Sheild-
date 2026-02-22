@@ -9,6 +9,15 @@ from ai_engine.geolocation import geocode_location
 
 logging.basicConfig(level=logging.INFO)
 
+# ----------------------------
+# Severity Weights
+# ----------------------------
+SEVERITY_WEIGHTS = {
+    "high": 3,
+    "medium": 2,
+    "low": 1
+}
+
 
 def process_unprocessed_records():
     db = SessionLocal()
@@ -22,15 +31,21 @@ def process_unprocessed_records():
 
         for record in records:
 
-            
+            # ----------------------------
+            # 1️⃣ Classification
+            # ----------------------------
             incident_type, severity, confidence = classify_incident(
                 record.content
             )
 
-            
+            # ----------------------------
+            # 2️⃣ Entity Extraction
+            # ----------------------------
             entities = extract_entities(record.content)
 
-            
+            # ----------------------------
+            # 3️⃣ Geo-Tagging
+            # ----------------------------
             latitude = None
             longitude = None
 
@@ -39,13 +54,29 @@ def process_unprocessed_records():
                     entities["locations"][0]
                 )
 
-          
+            # ----------------------------
+            # 4️⃣ Risk Scoring
+            # ----------------------------
+            severity_weight = SEVERITY_WEIGHTS.get(severity, 1)
+
+            # Source credibility weight
+            source_weight = 1.2 if record.source == "newsapi" else 1
+
+            # Geo presence weight
+            geo_weight = 1.1 if latitude and longitude else 1
+
+            risk_score = confidence * severity_weight * source_weight * geo_weight
+
+            # ----------------------------
+            # 5️⃣ Save AI Results
+            # ----------------------------
             record.incident_type = incident_type
             record.severity = severity
             record.confidence = confidence
             record.entities = entities
             record.latitude = latitude
             record.longitude = longitude
+            record.risk_score = round(risk_score, 3)
             record.processed = True
 
         db.commit()
