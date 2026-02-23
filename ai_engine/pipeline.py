@@ -8,6 +8,7 @@ from ai_engine.ner import extract_entities
 from ai_engine.geolocation import geocode_location
 from ai_engine.embedding import generate_embedding
 from ai_engine.clustering import cluster_records
+from ai_engine.alert_engine import generate_alerts
 
 logging.basicConfig(level=logging.INFO)
 
@@ -26,7 +27,7 @@ def process_unprocessed_records():
 
     try:
         # ----------------------------
-        # Fetch Unprocessed Records
+        # 1️⃣ Fetch Unprocessed Records
         # ----------------------------
         records = db.query(RawOSINT).filter(
             RawOSINT.processed == False
@@ -37,19 +38,19 @@ def process_unprocessed_records():
         for record in records:
 
             # ----------------------------
-            # 1️⃣ Classification
+            # 2️⃣ Classification
             # ----------------------------
             incident_type, severity, confidence = classify_incident(
                 record.content
             )
 
             # ----------------------------
-            # 2️⃣ Entity Extraction
+            # 3️⃣ Entity Extraction
             # ----------------------------
             entities = extract_entities(record.content)
 
             # ----------------------------
-            # 3️⃣ Geo-Tagging
+            # 4️⃣ Geo-Tagging
             # ----------------------------
             latitude = None
             longitude = None
@@ -60,7 +61,7 @@ def process_unprocessed_records():
                 )
 
             # ----------------------------
-            # 4️⃣ Risk Scoring
+            # 5️⃣ Risk Scoring
             # ----------------------------
             severity_weight = SEVERITY_WEIGHTS.get(severity, 1)
             source_weight = 1.2 if record.source == "newsapi" else 1
@@ -69,12 +70,12 @@ def process_unprocessed_records():
             risk_score = confidence * severity_weight * source_weight * geo_weight
 
             # ----------------------------
-            # 5️⃣ Embedding Generation
+            # 6️⃣ Embedding Generation
             # ----------------------------
             embedding = generate_embedding(record.content)
 
             # ----------------------------
-            # 6️⃣ Save AI Results
+            # 7️⃣ Save AI Results
             # ----------------------------
             record.incident_type = incident_type
             record.severity = severity
@@ -91,13 +92,18 @@ def process_unprocessed_records():
         logging.info("AI enrichment complete.")
 
         # ----------------------------
-        # 7️⃣ Clustering (Post-Processing)
+        # 8️⃣ Clustering (Correlation Layer)
         # ----------------------------
         all_records = db.query(RawOSINT).all()
         cluster_records(all_records)
-
         db.commit()
         logging.info("Clustering complete.")
+
+        # ----------------------------
+        # 9️⃣ Alert Generation (Intelligence Layer)
+        # ----------------------------
+        generate_alerts()
+        logging.info("Alert generation complete.")
 
     except Exception as e:
         db.rollback()
