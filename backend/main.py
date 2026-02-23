@@ -1,13 +1,18 @@
 from fastapi import FastAPI
 from backend.routes.incidents import router as incidents_router
+from backend.routes.intelligence import router as intelligence_router
+
 from ingestion.collectors.news import collect_news
 from ai_engine.pipeline import process_unprocessed_records
+
 from apscheduler.schedulers.background import BackgroundScheduler
 import logging
 
 app = FastAPI(title="OSNIT Shield API")
 
+# Routers
 app.include_router(incidents_router)
+app.include_router(intelligence_router)
 
 logging.basicConfig(level=logging.INFO)
 
@@ -35,4 +40,3 @@ def start_scheduler():
 @app.get("/")
 def root():
     return {"message": "OSNIT Shield Backend Running"}
-
