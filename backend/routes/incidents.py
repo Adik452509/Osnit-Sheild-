@@ -58,4 +58,29 @@ def get_stats():
 
     finally:
         db.close()
+@router.get("/map")
+def map_data():
+    db = SessionLocal()
+    try:
+        records = db.query(RawOSINT)\
+            .filter(
+                RawOSINT.latitude != None,
+                RawOSINT.longitude != None
+            ).all()
+
+        return {
+            "incidents": [
+                {
+                    "id": r.id,
+                    "incident_type": r.incident_type,
+                    "risk_score": r.risk_score,
+                    "latitude": r.latitude,
+                    "longitude": r.longitude
+                }
+                for r in records
+            ]
+        }
+
+    finally:
+        db.close()
 

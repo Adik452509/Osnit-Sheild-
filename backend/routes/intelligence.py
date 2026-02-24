@@ -237,3 +237,98 @@ def detect_spikes():
 
     finally:
         db.close()
+@router.get("/summary")
+def analytics_summary():
+    db = SessionLocal()
+    try:
+        # ---------------------------
+        # 1️⃣ Total Incidents
+        # ---------------------------
+        total = db.execute(
+            text("SELECT COUNT(*) FROM raw_osint")
+        ).scalar()
+
+        # ---------------------------
+        # 2️⃣ Severity Breakdown
+        # ---------------------------
+        severity_counts = db.execute(
+            text("""
+                SELECT severity, COUNT(*) as cnt
+                FROM raw_osint
+                GROUP BY severity
+            """)
+        ).fetchall()
+
+        severity_breakdown = {
+            row.severity: row.cnt for row in severity_counts
+        }
+
+        # ---------------------------
+        # 3️⃣ Top Incident Types
+        # ---------------------------
+        top_types = db.execute(
+            text("""
+                SELECT incident_type, COUNT(*) as cnt
+                FROM raw_osint
+                GROUP BY incident_type
+                ORDER BY cnt DESC
+                LIMIT 5
+            """)
+        ).fetchall()
+
+        # ---------------------------
+        # 4️⃣ Top Clusters
+        # ---------------------------
+        top_clusters = db.execute(
+            text("""
+                SELECT cluster_id, COUNT(*) as cnt
+                FROM raw_osint
+                GROUP BY cluster_id
+                ORDER BY cnt DESC
+                LIMIT 5
+            """)
+        ).fetchall()
+
+        # ---------------------------
+        # 5️⃣ Average Risk Score
+        # ---------------------------
+        avg_risk = db.execute(
+            text("SELECT AVG(risk_score) FROM raw_osint")
+        ).scalar()
+
+        # ---------------------------
+        # 6️⃣ Alerts Count
+        # ---------------------------
+        alert_count = db.execute(
+            text("SELECT COUNT(*) FROM alerts")
+        ).scalar()
+
+        # ---------------------------
+        # 7️⃣ Last 24h Incident Count
+        # ---------------------------
+        last_24h = db.execute(
+            text("""
+                SELECT COUNT(*)
+                FROM raw_osint
+                WHERE collected_at >= NOW() - INTERVAL '24 hours'
+            """)
+        ).scalar()
+
+        return {
+            "total_incidents": total,
+            "severity_breakdown": severity_breakdown,
+            "top_incident_types": [
+                {"incident_type": row.incident_type, "count": row.cnt}
+                for row in top_types
+            ],
+            "top_clusters": [
+                {"cluster_id": row.cluster_id, "incident_count": row.cnt}
+                for row in top_clusters
+            ],
+            "average_risk_score": round(avg_risk, 3) if avg_risk else 0,
+            "total_alerts": alert_count,
+            "incidents_last_24h": last_24h
+        }
+
+    finally:
+        db.close()
