@@ -156,3 +156,84 @@ def similar_incidents(incident_id: int, top_k: int = 5):
 
     finally:
         db.close()
+        
+from sqlalchemy import text
+
+
+@router.get("/trends")
+def incident_trends():
+    db = SessionLocal()
+    try:
+        results = db.execute(
+            text("""
+                SELECT date_trunc('hour', collected_at) as hour,
+                       COUNT(*) as count
+                FROM raw_osint
+                WHERE collected_at >= NOW() - INTERVAL '24 hours'
+                GROUP BY hour
+                ORDER BY hour
+            """)
+        ).fetchall()
+
+        return {
+            "hourly_trends": [
+                {
+                    "hour": str(row.hour),
+                    "incident_count": row.count
+                }
+                for row in results
+            ]
+        }
+
+    finally:
+        db.close()
+from sqlalchemy import text
+
+
+@router.get("/spikes")
+def detect_spikes():
+    db = SessionLocal()
+    try:
+        # Last 1 hour count
+        recent = db.execute(
+            text("""
+                SELECT incident_type, COUNT(*) as cnt
+                FROM raw_osint
+                WHERE collected_at >= NOW() - INTERVAL '1 hour'
+                GROUP BY incident_type
+            """)
+        ).fetchall()
+
+        # Previous 1 hour count
+        previous = db.execute(
+            text("""
+                SELECT incident_type, COUNT(*) as cnt
+                FROM raw_osint
+                WHERE collected_at >= NOW() - INTERVAL '2 hour'
+                  AND collected_at < NOW() - INTERVAL '1 hour'
+                GROUP BY incident_type
+            """)
+        ).fetchall()
+
+        prev_dict = {row.incident_type: row.cnt for row in previous}
+
+        spikes = []
+
+        for row in recent:
+            prev_count = prev_dict.get(row.incident_type, 0)
+
+            if prev_count > 0:
+                growth = (row.cnt - prev_count) / prev_count
+
+                if growth > 0.5:  # 50% growth threshold
+                    spikes.append({
+                        "incident_type": row.incident_type,
+                        "previous_count": prev_count,
+                        "current_count": row.cnt,
+                        "growth_rate": round(growth, 2)
+                    })
+
+        return {"spikes": spikes}
+
+    finally:
+        db.close()
