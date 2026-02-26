@@ -1,117 +1,62 @@
-import logging
+# ai_engine/pipeline.py
 
 from database import SessionLocal
 from models import RawOSINT
 
+from ai_engine.preprocess import clean_text
+from ai_engine.nlp_engine import extract_entities
+from ai_engine.geo_mapper import detect_country, detect_state
 from ai_engine.classifier import classify_incident
-from ai_engine.ner import extract_entities
-from ai_engine.geolocation import geocode_location
-from ai_engine.embedding import generate_embedding
-from ai_engine.clustering import cluster_records
-from ai_engine.alert_engine import generate_alerts
-
-logging.basicConfig(level=logging.INFO)
-
-# ----------------------------
-# Severity Weights
-# ----------------------------
-SEVERITY_WEIGHTS = {
-    "high": 3,
-    "medium": 2,
-    "low": 1
-}
+from ai_engine.risk_engine import calculate_severity, calculate_risk_score
+from ai_engine.summarizer import generate_summary
 
 
 def process_unprocessed_records():
+
     db = SessionLocal()
 
-    try:
-        # ----------------------------
-        # 1️⃣ Fetch Unprocessed Records
-        # ----------------------------
-        records = db.query(RawOSINT).filter(
-            RawOSINT.processed == False
-        ).all()
+    records = db.query(RawOSINT).filter(
+        RawOSINT.processed == False
+    ).all()
 
-        logging.info(f"Found {len(records)} unprocessed records.")
+    processed_count = 0
 
-        for record in records:
+    for record in records:
 
-            # ----------------------------
-            # 2️⃣ Classification
-            # ----------------------------
-            incident_type, severity, confidence = classify_incident(
-                record.content
-            )
+        cleaned = clean_text(record.content)
 
-            # ----------------------------
-            # 3️⃣ Entity Extraction
-            # ----------------------------
-            entities = extract_entities(record.content)
+        entities = extract_entities(cleaned)
 
-            # ----------------------------
-            # 4️⃣ Geo-Tagging
-            # ----------------------------
-            latitude = None
-            longitude = None
+        country = detect_country(entities["locations"])
+        state = detect_state(entities["locations"])
 
-            if entities.get("locations"):
-                latitude, longitude = geocode_location(
-                    entities["locations"][0]
-                )
+        incident_type = classify_incident(cleaned)
 
-            # ----------------------------
-            # 5️⃣ Risk Scoring
-            # ----------------------------
-            severity_weight = SEVERITY_WEIGHTS.get(severity, 1)
-            source_weight = 1.2 if record.source == "newsapi" else 1
-            geo_weight = 1.1 if latitude and longitude else 1
+        severity_level = calculate_severity(incident_type)
+        risk_score = calculate_risk_score(
+            severity_level,
+            len(entities["locations"])
+        )
 
-            risk_score = confidence * severity_weight * source_weight * geo_weight
+        summary = generate_summary(
+            incident_type,
+            state,
+            country
+        )
 
-            # ----------------------------
-            # 6️⃣ Embedding Generation
-            # ----------------------------
-            embedding = generate_embedding(record.content)
+        record.country = country
+        record.state = state
+        record.incident_type = incident_type
+        record.severity = ["low", "medium", "high"][severity_level - 1]
+        record.risk_score = risk_score
+        record.confidence = round(0.6 + risk_score * 0.3, 2)
+        record.summary = summary
+        record.keyword_vector = entities
+        record.processed = True
 
-            # ----------------------------
-            # 7️⃣ Save AI Results
-            # ----------------------------
-            record.incident_type = incident_type
-            record.severity = severity
-            record.confidence = confidence
-            record.entities = entities
-            record.latitude = latitude
-            record.longitude = longitude
-            record.risk_score = round(risk_score, 3)
-            record.embedding = embedding
-            record.processed = True
+        processed_count += 1
 
-        # Commit enrichment updates
-        db.commit()
-        logging.info("AI enrichment complete.")
+    db.commit()
+    db.close()
 
-        # ----------------------------
-        # 8️⃣ Clustering (Correlation Layer)
-        # ----------------------------
-        all_records = db.query(RawOSINT).all()
-        cluster_records(all_records)
-        db.commit()
-        logging.info("Clustering complete.")
-
-        # ----------------------------
-        # 9️⃣ Alert Generation (Intelligence Layer)
-        # ----------------------------
-        generate_alerts()
-        logging.info("Alert generation complete.")
-
-    except Exception as e:
-        db.rollback()
-        logging.error(f"Pipeline error: {e}")
-
-    finally:
-        db.close()
-
-
-if __name__ == "__main__":
-    process_unprocessed_records()
+    return processed_count

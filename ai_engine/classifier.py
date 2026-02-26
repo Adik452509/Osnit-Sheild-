@@ -1,36 +1,17 @@
-from transformers import pipeline
+ai_engine/classifier.py
 
-classifier = pipeline(
-    "zero-shot-classification",
-    model="facebook/bart-large-mnli"
-)
+def classify_incident(text):
 
-LABELS = [
-    "cyber attack",
-    "financial crime",
-    "civil unrest",
-    "natural disaster",
-    "political instability",
-    "data breach",
-    "terrorism",
-    "other"
-]
+    if "cyber" in text:
+        return "cyber_attack"
 
+    if "border" in text or "infiltration" in text:
+        return "border_tension"
 
-def classify_incident(text: str):
-    result = classifier(text, LABELS)
+    if "military" in text or "army" in text:
+        return "military_activity"
 
-    top_label = result["labels"][0]
-    confidence = float(result["scores"][0])
+    if "protest" in text or "violence" in text:
+        return "civil_unrest"
 
-    # Dynamic severity logic
-    if confidence < 0.40:
-        severity = "low"
-    elif top_label in ["cyber attack", "natural disaster", "terrorism"]:
-        severity = "high"
-    elif top_label in ["financial crime", "civil unrest"]:
-        severity = "medium"
-    else:
-        severity = "low"
-
-    return top_label, severity, confidence
+    return "other"
