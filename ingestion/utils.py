@@ -1,48 +1,91 @@
+# ingestion/utils.py
+
 import hashlib
-from sqlalchemy import cast, String
-
-from datetime import datetime
 from database import SessionLocal
-from models import RawOSINT
-import logging
-
-def generate_hash(text):
-    return hashlib.sha256(text.encode()).hexdigest()
+from models import RawOSINT, IngestionLog
 
 
-def insert_record(source, content, url=None, metadata=None):
+# -----------------------------------------------------
+# HASH GENERATOR
+# -----------------------------------------------------
+
+def generate_hash(text: str) -> str:
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+# -----------------------------------------------------
+# INSERT RECORDS SAFELY (DUPLICATE-PROOF)
+# -----------------------------------------------------
+
+def insert_records(records):
+
+    db = SessionLocal()
+    inserted = 0
+
+    for record in records:
+
+        content = record.get("content")
+        if not content:
+            continue
+
+        content_hash = generate_hash(content)
+
+        # Check if already exists
+        exists = db.query(RawOSINT.id).filter(
+            RawOSINT.content_hash == content_hash
+        ).first()
+
+        if exists:
+            continue
+
+        try:
+            obj = RawOSINT(
+                source=record.get("source"),
+                content=content,
+                url=record.get("url"),
+                country=record.get("country"),
+                state=record.get("state"),
+                geo_lat=record.get("geo_lat"),
+                geo_lon=record.get("geo_lon"),
+                extra_metadata=record.get("metadata"),
+                content_hash=content_hash,
+                processed=False
+            )
+
+            db.add(obj)
+            db.commit()   # commit per record
+            inserted += 1
+
+        except Exception:
+            db.rollback()
+            continue
+
+    db.close()
+    return inserted
+
+
+# -----------------------------------------------------
+# INGESTION LOGGING
+# -----------------------------------------------------
+
+def log_ingestion(source, fetched, inserted, status, error_message):
+
     db = SessionLocal()
 
     try:
-        content_hash = generate_hash(content)
-
-        # Duplicate check
-       # existing = db.query(RawOSINT).filter(
-  #          RawOSINT.extra_metadata["content_hash"].astext == content_hash
-     #   ).first()
-
-       # if existing:
-        #    return False
-
-        new_record = RawOSINT(
+        log = IngestionLog(
             source=source,
-            content=content,
-            url=url,
-            extra_metadata={
-                **(metadata or {}),
-                "content_hash": content_hash,
-                "collected_at": datetime.utcnow().isoformat()
-            }
+            records_fetched=fetched,
+            records_inserted=inserted,
+            status=status,
+            error_message=error_message
         )
 
-        db.add(new_record)
+        db.add(log)
         db.commit()
-        return True
 
-    except Exception as e:
+    except Exception:
         db.rollback()
-        logging.error(f"Insertion error: {e}")
-        return False
 
     finally:
         db.close()
