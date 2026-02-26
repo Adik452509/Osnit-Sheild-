@@ -1,7 +1,5 @@
-# ingestion/runner.py
-
 from ingestion.collectors.news import collect_news
-from ingestion.collectors.gdelt import collect_gdelt
+from ingestion.collectors.regional_rss import collect_regional_rss
 from ingestion.collectors.youtube import collect_youtube
 from ingestion.collectors.telegram import collect_telegram
 
@@ -12,7 +10,7 @@ def run_ingestion():
 
     sources = {
         "newsapi": collect_news,
-        "gdelt": collect_gdelt,
+        "regional_rss": collect_regional_rss,
         "youtube": collect_youtube,
         "telegram": collect_telegram
     }
