@@ -2,7 +2,9 @@ import os
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from dotenv import load_dotenv
+from sqlalchemy.ext.declarative import declarative_base
 
+Base = declarative_base()
 # Load environment variables
 load_dotenv()
 
